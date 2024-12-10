@@ -5,6 +5,7 @@
 #include <vector>
 #include <list>
 #include <fstream>
+#include <cstdint>
 
 #include "cmem_rcc/cmem_rcc.h"
 #include "flxcard/FlxCard.h"

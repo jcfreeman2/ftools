@@ -4,6 +4,8 @@
 #include "FlxUpload.h"
 #include "FlxReceiver.h"
 
+#include <cstdint>
+
 // ----------------------------------------------------------------------------
 
 // Bits and bit masks

@@ -1,6 +1,8 @@
 #ifndef GBTCONFIG_H
 #define GBTCONFIG_H
 
+#include <cstdint>
+
 #include "flxdefs.h"
 
 // Map from Elink-PROC enabled bitmask to E-path (FIFO)

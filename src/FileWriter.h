@@ -2,6 +2,7 @@
 #define FILEWRITER_H
 
 #include <thread>
+#include <cstdint>
 #include "flxdefs.h"
 
 typedef int64_t  i64;

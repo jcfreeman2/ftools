@@ -2,6 +2,7 @@
 #define JTAGPORT_H
 
 #include <vector>
+#include <cstdint>
 
 #include "FlxUpload.h"
 #include "FlxReceiver.h"

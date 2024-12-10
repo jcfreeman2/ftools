@@ -1,4 +1,6 @@
 
+#include <cstdint>
+
 bool writeIcRegs   ( FlxUpload *fup, FlxReceiver *frecvr,
                      int linknr, int i2c_addr,
                      int reg_addr, int nbytes, uint8_t *reg_vals,

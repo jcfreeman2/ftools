@@ -1,6 +1,8 @@
 #ifndef ENCODER8B10B_H
 #define ENCODER8B10B_H
 
+#include <cstdint>
+
 // Placeholders in the data to be replaced by appropriate control symbols
 const uint32_t SOC_CODE   = 0x100;
 const uint32_t EOC_CODE   = 0x200;
