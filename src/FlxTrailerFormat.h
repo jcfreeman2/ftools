@@ -1,6 +1,8 @@
 #ifndef FLXTRAILERFORMAT_H
 #define FLXTRAILERFORMAT_H
 
+#include <cstdint>
+
 class FlxTrailerFormat
 {
  public:

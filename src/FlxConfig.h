@@ -2,6 +2,7 @@
 #define FLXCONFIG_H
 
 #include <string>
+#include <cstdint>
 
 #include "flxcard/FlxCard.h"
 #include "flxdefs.h"

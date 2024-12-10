@@ -2,6 +2,7 @@
 #define GBTCONFIG5_H
 
 #include "flxdefs.h"
+#include <cstdint>
 
 enum {
   LINKMODE_GBT = 0,

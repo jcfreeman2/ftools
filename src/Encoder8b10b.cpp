@@ -1,5 +1,6 @@
 #include <iostream>
 #include <iomanip>
+#include <cstdint>
 using namespace std;
 
 #include "Encoder8b10b.h"

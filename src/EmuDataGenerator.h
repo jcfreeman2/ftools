@@ -2,6 +2,7 @@
 #define EMUDATAGENERATOR_H
 
 #include <vector>
+#include <cstdint>
 
 #include "Encoder8b10b.h"
 

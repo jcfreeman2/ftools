@@ -2,6 +2,7 @@
 #define FLXDAQ_H
 
 #include <string>
+#include <cstdint>
 
 class FlxReceiver;
 class FileWriter;
