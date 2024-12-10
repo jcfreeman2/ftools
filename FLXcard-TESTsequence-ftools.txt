@@ -1,0 +1,187 @@
+GBT FLX-card firmware test
+==========================
+(Henk B, Jan-Mar 2018, tested using 4-chan SVN5364 GBT firmware for FLX-709)
+**WORK IN PROGRESS**
+
+- assume after firmware load, "flx-init -T 2" and "flx-init" have been done
+  (2019: just 'flx-init' suffices).
+- if loopback fibers not available, use internal loopback:
+  to enable loopback, RegMap 3: fpepo 5620 2
+  to enable loopback, RegMap 4: fpepo 6630 2
+  or do the following for either regmap 3 or 4,
+  to enable loopback : flx-config set GTH_LOOPBACK_CONTROL=2
+  to disable loopback: flx-config set GTH_LOOPBACK_CONTROL=0
+
+1.
+Emulator tests:
+- load all-2-bit config (4 GBTs: ca. 1200 MB/s;
+  for more channels split in link-groups or do link-by-link?)
+  then all-4-bit, then all-8-bit;
+  perhaps in addition a mix of widths (use flx-config-default.elc)
+- load emu data, size 16, 100 and 1500 in sequence:
+  fdaq -t 3 -e
+  - check data rate (and make sure no (header/trailer) errors shown)
+  fdaq -t 3 -e -f 4096 -T tst
+  fcheck -B 3 tst.dat
+  - check for correct number of elinks and
+    more-or-less the same number of chunks for every elink
+  - (select shorter fdaq time if >4GB data is produced)
+- repeat with -E instead of -e option (loopbacks required)
+- repeat with FELIG emulator (TO BE DONE)
+- use 'hidden' fdaq option -Z to process data slow: cmem buffer fills up
+  as well as internal FLX-buffers (use -D to carry on despite errors):
+  fdaq -D -t 60 -e -Z
+  should not see header errors! (trailer errors are okay, i.e. due to truncation)
+  Btw, should also see BUSY asserted due to either
+  Wupper BUSY threshold or PCIe FIFO-full(?)
+- (FULLMODE firmware test: yes)
+
+2.
+Basic upload test (loopbacks required):
+- set a config with a 2-bit, 4-bit and 8-bit elink
+- datablock time-out enabled
+- fupload a single chunk to each enabled e-link while running fedump in another window;
+  should see a single complete chunk arrive, e.g.:
+  fupload -e 8 -r 1 -s 32
+  fedump -0
+- fupload 30 chunks of size 32, or 1 chunk of size 1018 (which fills up exactly one 1K-block,
+  which is an interesting case), to each enabled e-link
+  while running fedump in another window, should see 30 (or 1) complete chunks arrive:
+  fupload -e 8 -r 30 -s 32
+  fedump -0
+  (NB: the latter test reveals "corner case" issue FLX-545,
+       for 4-bit and 8-bit elinks)
+- Upload a single chunk with a larger size, larger than about 980,
+  reveals issue FLX-605: one data byte (last one of first DMA) is lost
+  if chunk is uploaded in 2 consecutive DMA operations of size 1024:
+  fupload -e 8 -r 1 -s 980
+- Upload two chunks of size 482, reveals a variation(?) of issue FLX-605;
+  34 bytes missing of the second chunk:
+  fupload -e 8 -r 2 -s 482
+  (Everything's fine using a single DMA: fupload -e 8 -r 2 -s 482 -x 2)
+- Uploads are currently split into in multiple DMAs of 1K-byte size,
+  because it was found that larger sizes result in some data corruption
+  in the received loopback data
+  (ideal would be if any-sized upload can be done as a single DMA operation).
+  It is now possible to increase the 'unit' DMA size of 1K to any number of KBytes
+  (option -x for fupload and fuptest).
+  to see issue FLX-605 potentially disappear, but see another type of data corruption appear
+  (no JIRA ticket number for this one yet..): use -x with different values for example
+  in test 3 below.
+
+3.
+Upload test of each elink individually (loopbacks required):
+- load all-2-bit config, then all-4-bit, then all-8-bit
+- fuptest -w 2 -r 1000 -s 8
+  - option "-w 4" for 4-bit, "-w 8" for 8-bit
+  - use various sizes (-s), must be even number, but note that >120 FAILS (not any more!)
+  - if required use option -g to test a single E-group
+  - use option -y to include EC and IC channels in the test,
+    but NB: these channels have immediate time-out configured
+    so that chunks>30 bytes may be split across more than 1 upload operation
+    causing a time-out (increase operation size using option -x)
+
+4.
+Test of data under timeout at the boundary between no-timeout and timeout:
+- set timeout to minimum of 64
+- enable just one 2-, 4- or 8-bit elink
+- emulator chunksize 16, number of IDLEs
+  (to go from 'no timeout' to just into 'timeout'):
+  - for 2-bit: 13, 14 and 15 IDLEs
+  - for 4-bit: 26 and 27 IDLEs
+  - for 8-bit: 51, 52 and 53 IDLEs
+- in one window run: fedump|more
+  in another       : femu -e|E
+  (NB: if in elinkconfig emulator data configuration option "Omit EoC" is used,
+       and the time-out is triggered, "corner case" issue FLX-535 occurs:
+       timed-out chunk with missing EoC gets time-out trailer, without truncation bit set).
+- enable all 2-, 4- or 8-bit elinks, then run, with e.g. max IDLEs from above
+  and run a check on the full data received:
+  fdaq -t 3 -e -f 4096 -T tst 
+  fcheck -B 3 tst.dat
+- (FULLMODE firmware test: yes)
+
+4a.
+Test of 'instant time-out':
+- disable global time-out
+- enable all 2-bit e-links
+- test per e-link:
+  - run fedump in a separate window
+  - upload 3 chunks to a single e-link: fupload -s 32 -r 3 -e 0
+    nothing should appear in fedump
+  - enable e-link timeout: feto -e 0 set
+  - upload another 3 chunks to the e-link: fupload -s 32 -r 3 -e 0
+  - single block containing 6 chunks should be received by fedump
+  - disable e-link timeout: feto -e 0 reset
+
+5.
+TTC-to-Host channel test:
+- enable just the TTC2Host channel
+- switch to TTC clock
+- run TTCvi at 1Hz random
+  - check arrival of TTC packets, both with timeout enabled and disabled
+    (will take some time to get one complete 1K-block):
+  fedump -0
+- run TTCvi at 100KHz random, with max timeout (4095) and timeout=0:
+  fdaq -t 10 -T tst
+  fcheck -B 3 tst.dat
+- (FULLMODE firmware test: yes)
+
+6.
+EC-channel/HDLC-mode test:
+talk to GBT-SCA chip on each GBT link (also on another 2-bit E-link if possible)
+- disable internal loopback: fpepo 5620|6630 0
+- enable EC-channels
+  plus one 2-bit E-link per GBT (e.g. group 0, path 0) in HDLC-mode
+- fec -G 3 -R -t 50 -r 50 -x 21 o
+  and
+  fec -G 3 -g 0 -p 0 -R -t 50 -r 50 -x 21 o
+  should both blink an VLDB LED (or use -x 18 for the other LED)
+- fec has been extended with a check on SCA replies vs expected,
+  so run a (much) larger number of commands fast, e.g.:
+  fec -G 3 -R -t 1 -r 500 -x 21 o
+  to check if the number of commands vs replies match (in this case: 1006)
+  In addition run:
+  fec -G 3 -R -t 1 -r 500 -x 21 o | grep "###"
+  to check if any errors like SCA reply CRC errors are reported
+- (or using fec option -Z: run "fedump -0 -A" in another window
+   to receive and display the SCA reply messages;
+   then there's no check on reply count, but 'grep ###' for CRC errors works)
+- (FULLMODE firmware test: yes?
+   there is an EC channel *to* (not from) the GBT-SCA, so no replies for sure)
+
+7.
+IC-channel test:
+- disable internal loopback: fpepo 5620|6630 0
+- connect a GBT-link to a GBTX, e.g. a VLDB
+  (DIP-switch: disable dongle, after having configured the GBTX using dongle)
+- Read and display all registers
+  (choose appropriate GBT-link '-G' and I2C address '-I')
+  fic -G 3 -I 1
+- Read and display all registers,
+  but now *one-by-one* (reveals issue FLX-584: additional byte in IC reply):
+  fic -G 3 -I 1 -o
+- Write and read back e.g. GBTX register address 1
+  (in between run "fic -G 3 -I 1" to check registers overall):
+  fic -G 3 -I 1 -a 1 ff
+  fic -G 3 -I 1 -a 1 ab 
+  fic -G 3 -I 1 -a 1 0   # Restore register value
+- See issue FLX-615: IC to be accessible through a virtual E-link;
+  to test this use the *fice* tool
+- (FULLMODE test: yes?
+   there is an IC channel *to* (not *from*) the GBTX, so no replies to be had..)
+
+8. etc....
+- fplayback tests: I have many 'reference' files in /localstore/n48
+  with content matching various configurations;
+  run with -R option, i.e. with pseudo-random chunk content
+  to rule out byte-sequence related issues (see FLX-934, issue CLOSED)
+- (corner case issues, see slide about "issues summary":
+   FLX-608: demonstrated in an fplayback test (issue CLOSED)
+   the rest is covered by tests above: FLX-535 (issue OPEN),FLX-545 (issue OPEN),
+   FLX-584 (issue CLOSED),FLX-605 (issue CLOSED))
+- (TTC to frontend: how to test?)
+- (BUSY tests: how to test? FELIG?)
+- (FLASH programmability:
+   upload and verify a firmware; load this firmware into running mode;
+   using the fflash tool)
